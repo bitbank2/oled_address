@@ -1,5 +1,7 @@
 //
-// oled_addr - display the current IP address(es) on the first
+// oled_address
+//
+// Display the current IP address(es) on the first
 // SSD1306 OLED display found on any I2C bus
 //
 // SPDX-FileCopyrightText: 2026 Larry Bank <bitbank@pobox.com>
@@ -27,7 +29,7 @@ ONE_BIT_DISPLAY obd;
 
 //
 // Search the given I2C bus for an OLED display
-// return: 0=none found or I2C address of the device
+// return: 1=found, 0=none found
 //
 int I2CFindOLED(int iBus)
 {
@@ -55,39 +57,40 @@ int file_i2c;
     close(file_i2c);
     return iTotal;
 } /* I2CFindOLED() */
-
+//
+// Display the network info on the given I2C bus
+//
 void ShowAddr(int iBus)
 {
 struct utsname un;
 struct ifaddrs *addrs, *tmp;
 
-  obd.setI2CPins(iBus, 0);
-  obd.I2Cbegin(OLED_128x64);
-  //obd.setContrast(48); // middle brightness to prevent burn-in
-  obd.allocBuffer();
-  obd.fillScreen(OBD_WHITE);
-  obd.setFont(FONT_8x8);
+    obd.setI2CPins(iBus, 0);
+    obd.I2Cbegin(OLED_128x64);
+    //obd.setContrast(48); // middle brightness to prevent burn-in
+    obd.allocBuffer();
+    obd.fillScreen(OBD_WHITE);
+    obd.setFont(FONT_8x8);
 
-uname(&un);
-obd.println(un.nodename);
-obd.println(" ");
-getifaddrs(&addrs);
-tmp = addrs;
-while (tmp)
-{
-    if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_INET)
-    {
-        struct sockaddr_in *pAddr = (struct sockaddr_in *)tmp->ifa_addr;
-        if (strncmp(tmp->ifa_name, "lo", 2) != 0) { // we don't need to see "lo"
-            obd.print(tmp->ifa_name); obd.println(":");
-            obd.println(inet_ntoa(pAddr->sin_addr));
-            obd.println(" ");
-        }
-    }
-    tmp = tmp->ifa_next;
-}
-freeifaddrs(addrs);
-obd.display();
+    uname(&un); // Get the current network name
+    obd.println(un.nodename);
+    obd.println(" ");
+    getifaddrs(&addrs); // Get the IP address(es) of all network interfaces
+    tmp = addrs;
+
+    while (tmp) {
+        if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *pAddr = (struct sockaddr_in *)tmp->ifa_addr;
+            if (strncmp(tmp->ifa_name, "lo", 2) != 0) { // we don't need to see "lo"
+                obd.print(tmp->ifa_name); obd.println(":");
+                obd.println(inet_ntoa(pAddr->sin_addr));
+                obd.println(" ");
+            } // if not 'lo'
+        } // if a network interface
+        tmp = tmp->ifa_next; // next in the linked list
+    } // while (tmp)
+    freeifaddrs(addrs);
+    obd.display(); // write the local framebuffer to the physical display
 } /* ShowAddr() */
 
 int main(int argc, char *argv[])
@@ -96,36 +99,41 @@ int iBus;
 DIR *pDir;
 struct dirent *pDE;
 uint32_t u32Buses = 0; // available I2C bus numbers (0-31)
-int iDuration = 5 * 60; // keep it visible for 5 minutes
+int iDuration = 5 * 60; // Keep it visible for 5 minutes by default
 
     if (argc == 2) { // user specified the duration
         iDuration = atoi(argv[1]);
     }
 
-	// I2C buses in Linux are defined as a file in the /dev directory
-        pDir = opendir("/dev");
-	if (!pDir) {
-		printf("Error searching /dev directory; aborting.\n");
-		return -1;
-	}
-	// Search all names in the /dev directory for those starting with i2c-
-        while ((pDE = readdir(pDir)) != NULL) {
-		if (memcmp(pDE->d_name, "i2c-", 4) == 0) { // found one!
-                    iBus = atoi(&pDE->d_name[4]);
-		    u32Buses |= (1 << iBus); // collect the bus numbers
-		}
-	}
-	closedir(pDir);
-	// Search each I2C bus for a supported proximited sensor
-        for (iBus=0; iBus<32; iBus++) {
-	    if (u32Buses & (1<<iBus)) { // a bus that we found in /dev
-		//printf("Searching /dev/i2c-%d...", iBus);
-                if (I2CFindOLED(iBus)) { // scan for an OLED
-                    ShowAddr(iBus);
-                    break;
-                }
-	    }
-        } // for each possible bus
+// I2C buses in Linux are defined as a file in the /dev directory
+    pDir = opendir("/dev");
+    if (!pDir) {
+        printf("Error searching /dev directory; aborting.\n");
+        printf("Are you running as sudo?\n");
+        return -1;
+    }
+// Search all names in the /dev directory for those starting with i2c-
+    while ((pDE = readdir(pDir)) != NULL) {
+        if (memcmp(pDE->d_name, "i2c-", 4) == 0) { // found one!
+            iBus = atoi(&pDE->d_name[4]);
+            u32Buses |= (1 << iBus); // collect the bus numbers
+        }
+    } // while searching all names in /dev
+    closedir(pDir);
+    if (u32Buses == 0) {
+        printf("No I2C buses found, did you enable I2C?\n");
+        return -1;
+    }
+// Search each I2C bus for a supported proximited sensor
+    for (iBus=0; iBus<32; iBus++) {
+        if (u32Buses & (1<<iBus)) { // a bus that we found in /dev
+            //printf("Searching /dev/i2c-%d...", iBus);
+            if (I2CFindOLED(iBus)) { // scan for an OLED
+                ShowAddr(iBus);
+                break;
+            }
+        } // I2C bus found
+    } // for each possible bus
     // A duration of 0 seconds means to leave the display on forever
     if (iDuration != 0) {
         usleep(iDuration * 1000000); // Show the info for the given amount of time
