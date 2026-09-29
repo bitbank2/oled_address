@@ -1,0 +1,3 @@
+[submodule "OneBitDisplay"]
+	path = OneBitDisplay
+	url = https://github.com/bitbank2/OneBitDisplay
