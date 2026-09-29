@@ -4,7 +4,8 @@ Copyright (c) 2026 BitBank Software, Inc.<br>
 Written by Larry Bank<br>
 bitbank@pobox.com<br>
 <br>
-
+![oled_addr](/oled_addr.jpg?raw=true "OLED Address")
+<br>
 ## What is it?
 This project displays the current network name and address on the first I2C OLED display that it finds on the available I2C buses. It will quietly search all I2C buses for a matching address of 0x3c or 0x3d.<br>
 
