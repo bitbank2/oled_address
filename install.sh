@@ -5,8 +5,6 @@ cd OneBitDisplay/Linux
 make
 cd ../..
 make
-sudo chmod 4755 oled_addr
-sudo cp oled_addr /usr/local/bin
 echo "oled_addr is now built and installed in /usr/local/bin"
 echo "To have it run at startup, edit /etc/rc.local and add the line:"
 echo "/usr/local/bin/oled_addr BEFORE the line with 'exit 0'."

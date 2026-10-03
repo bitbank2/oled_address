@@ -64,15 +64,19 @@ void ShowAddr(int iBus)
 {
 struct utsname un;
 struct ifaddrs *addrs, *tmp;
+int iTimeout = 0;
+int bFound = 0;
 
     obd.setI2CPins(iBus, 0);
     obd.I2Cbegin(OLED_128x64);
     //obd.setContrast(48); // middle brightness to prevent burn-in
     obd.allocBuffer();
-    obd.fillScreen(OBD_WHITE);
     obd.setFont(FONT_8x8);
 
     uname(&un); // Get the current network name
+try_again:
+    obd.fillScreen(OBD_WHITE);
+    obd.setCursor(0,0);
     obd.println(un.nodename);
     obd.println(" ");
     getifaddrs(&addrs); // Get the IP address(es) of all network interfaces
@@ -85,11 +89,25 @@ struct ifaddrs *addrs, *tmp;
                 obd.print(tmp->ifa_name); obd.println(":");
                 obd.println(inet_ntoa(pAddr->sin_addr));
                 obd.println(" ");
+                bFound = 1;
             } // if not 'lo'
         } // if a network interface
         tmp = tmp->ifa_next; // next in the linked list
     } // while (tmp)
     freeifaddrs(addrs);
+    if (!bFound) {
+        obd.setCursor(0,0);
+        iTimeout++;
+        if (iTimeout == 10) {
+            obd.print("timed out...    ");
+            obd.display(); 
+        } else {
+            obd.print("waiting...      ");
+            obd.display();
+            usleep(30*1000000); // wait 30 seconds for DHCP to finish
+            goto try_again;
+        }
+    }
     obd.display(); // write the local framebuffer to the physical display
 } /* ShowAddr() */
 
